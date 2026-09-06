@@ -1,10 +1,29 @@
-# Who's on my WiFi
+# BerlinNet — Who's on my WiFi
 
 A local panel that shows every device on your network, lets you name them, and
 flags anything you haven't recognised yet.
 
 Runs on your own PC. It has to — a scanner needs to be physically on the network
 it's scanning, so this cannot be deployed to Vercel or Railway.
+
+## Quick install (Windows) — one command, no setup
+
+Open **Command Prompt** (press the Windows key, type `cmd`, press Enter), then
+paste this and press Enter. It downloads BerlinNet and starts it:
+
+```
+curl -L -o "%USERPROFILE%\Downloads\BerlinNet.exe" https://github.com/Berlin170/Berlinnet/releases/latest/download/BerlinNet.exe && "%USERPROFILE%\Downloads\BerlinNet.exe"
+```
+
+A small window opens and your browser shows the panel at
+<http://127.0.0.1:8765>. Click **Connect** and sign in with your **router**
+admin login (not the Wi-Fi password) to block or unblock devices.
+
+Next time, just double-click `BerlinNet.exe` in your Downloads folder.
+
+> No Python, no install. If Windows shows a blue "Windows protected your PC"
+> box, click **More info → Run anyway** (it appears because the app isn't paid
+> code-signing — it's safe, you built it).
 
 > ## Which app should I use?
 >
