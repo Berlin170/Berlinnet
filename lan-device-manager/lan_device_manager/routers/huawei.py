@@ -727,43 +727,54 @@ class HuaweiAdapter(RouterAdapter):
                     "device. Switch to Blacklist on the router to deny it.")
         return ActionResult(True, msg, method=BlockMethod.MAC_FILTER, detail="via sec-addmacfilter.asp")
 
-    def _atp_remove(self, mac: str) -> ActionResult:
-        """Delete a rule via the confirmed sec-macfilter.asp Actionflag=Del POST."""
-        mac_canon = mac.strip().lower().replace("-", ":")
-        entries = self._list_entries()
-        index = next((i for i, e in enumerate(entries) if e["mac"] == mac_canon), None)
-        if index is None:
-            return ActionResult(True, f"{mac} is not in the router's filter list.",
-                                method=BlockMethod.MAC_FILTER)
-        mode = self._filter_mode() or "Black"
-        payload = {
-            "ListType_Flag": mode,
-            "Mac_Flag": "3",              # removeClick() sets this to 3 for a delete
-            "delnum": f"{index},",        # comma-terminated list of row indices
-            "EnMacFilter_Flag": "1",
-            "mac_num": str(len(entries)),
-            "Actionflag": "Del",
-            "IpMacType_Flag": "Mac",
-            "isFilter": "on",
-            "FilterMode": "1" if mode == "White" else "0",
-            "Selected_Menu": "Security->MAC Filter",
-        }
-        resp = self._post_form(MACFILTER_PATH, payload, referer=MACFILTER_PATH)
-        if resp is None:
-            return ActionResult(False, "The router did not accept the delete request.")
-        if resp.status_code != 200:
-            return ActionResult(False, f"The router returned HTTP {resp.status_code}.")
+    def _atp_remove(self, mac: str, attempts: int = 3) -> ActionResult:
+        """Delete a rule via the confirmed sec-macfilter.asp Actionflag=Del POST.
 
-        still = self._confirm_presence(mac_canon, want_present=False)
-        if still:
-            return ActionResult(
-                False,
-                "The router accepted the request but the device is still in its filter "
-                "list, so the unblock did not take effect.",
-                method=BlockMethod.MAC_FILTER,
-            )
-        return ActionResult(True, f"{mac} unblocked on the router.",
-                            method=BlockMethod.MAC_FILTER, detail="via sec-macfilter.asp")
+        This ONT occasionally accepts the POST but drops the write, and the row
+        index shifts as entries come and go, so we re-read the list and re-issue
+        the delete a few times rather than trusting a single attempt - a stuck
+        entry means a device that silently stays cut off.
+        """
+        import time
+
+        mac_canon = mac.strip().lower().replace("-", ":")
+        mode = self._filter_mode() or "Black"
+
+        for attempt in range(attempts):
+            entries = self._list_entries()
+            index = next((i for i, e in enumerate(entries) if e["mac"] == mac_canon), None)
+            if index is None:
+                return ActionResult(True, f"{mac} unblocked on the router.",
+                                    method=BlockMethod.MAC_FILTER, detail="via sec-macfilter.asp")
+            payload = {
+                "ListType_Flag": mode,
+                "Mac_Flag": "3",              # removeClick() sets this to 3 for a delete
+                "delnum": f"{index},",        # comma-terminated list of row indices
+                "EnMacFilter_Flag": "1",
+                "mac_num": str(len(entries)),
+                "Actionflag": "Del",
+                "IpMacType_Flag": "Mac",
+                "isFilter": "on",
+                "FilterMode": "1" if mode == "White" else "0",
+                "Selected_Menu": "Security->MAC Filter",
+            }
+            resp = self._post_form(MACFILTER_PATH, payload, referer=MACFILTER_PATH)
+            if resp is None:
+                return ActionResult(False, "The router did not accept the delete request.")
+            if resp.status_code != 200:
+                return ActionResult(False, f"The router returned HTTP {resp.status_code}.")
+            if not self._confirm_presence(mac_canon, want_present=False):
+                return ActionResult(True, f"{mac} unblocked on the router.",
+                                    method=BlockMethod.MAC_FILTER, detail="via sec-macfilter.asp")
+            time.sleep(1.0)   # let the box settle, then re-read the index and retry
+
+        return ActionResult(
+            False,
+            "The router kept the device in its filter list after several delete "
+            "attempts, so the unblock did not take effect. Try again, or remove the "
+            "entry from the router's MAC Filter page in a browser.",
+            method=BlockMethod.MAC_FILTER,
+        )
 
     # --------------------------------------------- generic fallback (other builds)
 

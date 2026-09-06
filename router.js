@@ -348,25 +348,31 @@ async function atpAdd(jar, mac) {
   return { enforced: true, message: 'Blocked on the router.' + warn };
 }
 
-async function atpRemove(jar, mac) {
+async function atpRemove(jar, mac, attempts = 3) {
+  // This ONT occasionally accepts the POST but drops the write, and row indices
+  // shift as entries change, so re-read the list and re-issue the delete a few
+  // times rather than trusting one attempt — a stuck entry means a device that
+  // silently stays cut off.
   const canon = mac.trim().toLowerCase().replace(/-/g, ':');
-  const entries = await currentEntries(jar);
-  const index = entries.findIndex((e) => e.mac === canon);
-  if (index < 0) return { enforced: true, message: `${mac} is not in the router's filter list.` };
-
   const modeBody = (await httpGet(jar, MACFILTER_PATH, CONFIG.mainPath)).body;
   const mode = filterMode(modeBody) || 'Black';
-  const payload = {
-    ListType_Flag: mode, Mac_Flag: '3', delnum: index + ',', EnMacFilter_Flag: '1',
-    mac_num: String(entries.length), Actionflag: 'Del', IpMacType_Flag: 'Mac',
-    isFilter: 'on', FilterMode: mode === 'White' ? '1' : '0', Selected_Menu: 'Security->MAC Filter'
-  };
-  const post = await httpPost(jar, MACFILTER_PATH, payload, MACFILTER_PATH);
-  if (post.status !== 200) return { enforced: false, message: `Router returned HTTP ${post.status} on the delete request.` };
 
-  return (await confirmPresence(jar, canon, false))
-    ? { enforced: false, message: 'The router accepted the request but the device is still in its filter list, so the unblock did not take effect.' }
-    : { enforced: true, message: 'Unblocked on the router.' };
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const entries = await currentEntries(jar);
+    const index = entries.findIndex((e) => e.mac === canon);
+    if (index < 0) return { enforced: true, message: 'Unblocked on the router.' };
+
+    const payload = {
+      ListType_Flag: mode, Mac_Flag: '3', delnum: index + ',', EnMacFilter_Flag: '1',
+      mac_num: String(entries.length), Actionflag: 'Del', IpMacType_Flag: 'Mac',
+      isFilter: 'on', FilterMode: mode === 'White' ? '1' : '0', Selected_Menu: 'Security->MAC Filter'
+    };
+    const post = await httpPost(jar, MACFILTER_PATH, payload, MACFILTER_PATH);
+    if (post.status !== 200) return { enforced: false, message: `Router returned HTTP ${post.status} on the delete request.` };
+    if (!(await confirmPresence(jar, canon, false))) return { enforced: true, message: 'Unblocked on the router.' };
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  return { enforced: false, message: 'The router kept the device in its filter list after several delete attempts. Try again, or remove the entry from the router’s MAC Filter page in a browser.' };
 }
 
 // -------------------------------------------------------------------- public API
