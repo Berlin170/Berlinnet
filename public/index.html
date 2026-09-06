@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Who's on my WiFi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ground: #eef0f3;
+    --panel: #ffffff;
+    --band: #212a36;
+    --ink: #1b2330;
+    --ink-soft: #5d6875;
+    --rule: #d2d8e0;
+    --present: #1a7f5a;
+    --stranger: #a35a10;
+    --gone: #99a2ad;
+    --danger: #9c2f2f;
+    --focus: #2f6feb;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: 'IBM Plex Sans', system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+  }
+
+  .wrap { max-width: 900px; margin: 0 auto; padding: 0 16px 64px; }
+
+  /* ---- header band ---- */
+  header {
+    background: var(--band);
+    color: #fff;
+    padding: 22px 0 20px;
+    margin-bottom: 28px;
+  }
+  .head-inner {
+    max-width: 900px; margin: 0 auto; padding: 0 16px;
+    display: flex; align-items: baseline; justify-content: space-between;
+    flex-wrap: wrap; gap: 12px;
+  }
+  h1 { font-size: 19px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+  .status {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px; color: #a9b4c2;
+  }
+
+  /* ---- summary line ---- */
+  .summary {
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 14px; margin-bottom: 18px;
+  }
+  .readout { font-size: 17px; font-weight: 500; }
+  .readout em { font-style: normal; color: var(--stranger); }
+
+  button {
+    font: inherit; font-weight: 500;
+    border: 1px solid var(--band); background: var(--band); color: #fff;
+    padding: 8px 16px; border-radius: 4px; cursor: pointer;
+  }
+  button:hover { background: #2e3a49; }
+  button:disabled { opacity: .5; cursor: default; }
+  button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  .ghost {
+    background: transparent; color: var(--ink);
+    border: 1px solid var(--rule); padding: 5px 11px; font-size: 13px;
+  }
+  .ghost:hover { background: #e3e7ec; }
+  .ghost.warn { color: var(--danger); border-color: #e0c4c4; }
+  .ghost.warn:hover { background: #f7ebeb; }
+
+  /* ---- device register ---- */
+  .register {
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .row {
+    display: grid;
+    grid-template-columns: 12px 1fr auto;
+    gap: 14px;
+    align-items: start;
+    padding: 15px 18px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .row:last-child { border-bottom: 0; }
+  .row.offline { background: #f7f8f9; }
+  .row.blocked { background: #fbf4f4; }
+
+  .dot {
+    width: 9px; height: 9px; border-radius: 50%;
+    margin-top: 7px; background: var(--gone);
+  }
+  .row.present .dot { background: var(--present); }
+  .row.stranger .dot { background: var(--stranger); }
+  .row.blocked .dot { background: var(--danger); }
+
+  .who { min-width: 0; }
+  .name {
+    font-weight: 600; font-size: 15px;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .name input {
+    font: inherit; font-weight: 600;
+    border: 1px solid transparent; background: transparent;
+    padding: 2px 5px; margin: -2px -5px; border-radius: 3px;
+    width: 190px; max-width: 100%; color: inherit;
+  }
+  .name input:hover { border-color: var(--rule); }
+  .name input:focus { border-color: var(--focus); outline: none; background: #fff; }
+
+  .tag {
+    font-size: 11px; font-weight: 500; letter-spacing: .02em;
+    padding: 2px 7px; border-radius: 3px; white-space: nowrap;
+  }
+  .tag.type   { background: #e9eef4; color: #3a4757; }
+  .tag.you    { background: #e4ecf7; color: #2d5490; }
+  .tag.router { background: #e7eaee; color: #4a5563; }
+  .tag.new    { background: #f8eddc; color: var(--stranger); }
+  .tag.off    { background: #eceef1; color: var(--gone); }
+  .tag.stop   { background: #f4e2e2; color: var(--danger); }
+
+  .meta {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12.5px; color: var(--ink-soft);
+    margin-top: 3px; word-break: break-all;
+  }
+  .meta span + span::before { content: '   '; white-space: pre; }
+
+  .acts { display: flex; gap: 7px; flex-shrink: 0; }
+
+  .empty { padding: 44px 20px; text-align: center; color: var(--ink-soft); }
+
+  .note {
+    margin-top: 20px; padding: 14px 16px;
+    background: #fdf7ec; border: 1px solid #ecdcbf; border-radius: 5px;
+    font-size: 13.5px; color: #5c4a2c;
+  }
+  .note strong { color: #3f3320; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%);
+    background: var(--band); color: #fff;
+    padding: 11px 18px; border-radius: 5px; font-size: 14px;
+    max-width: 460px; box-shadow: 0 6px 22px rgba(20,28,38,.28);
+  }
+
+  @media (max-width: 560px) {
+    .row { grid-template-columns: 12px 1fr; }
+    .acts { grid-column: 2; margin-top: 9px; }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .dot { transition: background-color .2s; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="head-inner">
+    <h1>Who's on my WiFi</h1>
+    <div class="status" id="status">Starting up</div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="summary">
+    <div class="readout" id="readout">Scanning your network</div>
+    <button id="scanBtn">Scan now</button>
+  </div>
+
+  <div class="register" id="register">
+    <div class="empty">Looking for devices. The first scan takes about half a minute.</div>
+  </div>
+
+  <div class="note" id="blockNote" hidden>
+    <strong>Blocking is marked here only.</strong>
+    Your router has no MAC filter set up, so a blocked device still has internet.
+    To actually remove someone, change your WiFi password in the router settings.
+  </div>
+</div>
+
+<script>
+let toastTimer = null;
+
+function toast(msg) {
+  document.querySelectorAll('.toast').forEach(t => t.remove());
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.textContent = msg;
+  document.body.appendChild(el);
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.remove(), 5000);
+}
+
+function esc(s) {
+  return String(s).replace(/[&<>"]/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+
+// A small glyph for each device kind the scanner reports.
+function icon(kind) {
+  const k = kind.toLowerCase();
+  let e = '';
+  if (k.includes('router')) e = '📡';            // satellite antenna
+  else if (k.includes('this pc') || k.includes('windows') || k.includes('computer') || k.includes('mac')) e = '💻'; // laptop
+  else if (k.includes('iphone') || k.includes('android') || k.includes('ipad')) e = '📱'; // phone
+  else if (k.includes('cast') || k.includes('tv') || k.includes('media')) e = '📺'; // tv
+  else if (k.includes('airplay') || k.includes('apple')) e = '🍏';   // apple
+  else if (k.includes('speaker')) e = '🔊';      // speaker
+  else if (k.includes('printer')) e = '🖨';      // printer
+  else if (k.includes('storage') || k.includes('nas')) e = '💾'; // disk
+  else e = '🔌';                                  // plug (generic)
+  return e ? e + ' ' : '';
+}
+
+function ago(ts) {
+  if (!ts) return 'never';
+  const mins = Math.floor((Date.now() - ts) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return mins + ' min ago';
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return hrs + (hrs === 1 ? ' hour ago' : ' hours ago');
+  const days = Math.floor(hrs / 24);
+  return days + (days === 1 ? ' day ago' : ' days ago');
+}
+
+function render(data) {
+  const { devices, scanning, lastScan, online, unknown, routerConfigured } = data;
+
+  document.getElementById('status').textContent =
+    scanning ? 'Scanning' : lastScan ? 'Last scan ' + ago(lastScan) : 'Idle';
+
+  document.getElementById('scanBtn').disabled = scanning;
+  document.getElementById('scanBtn').textContent = scanning ? 'Scanning' : 'Scan now';
+
+  const readout = document.getElementById('readout');
+  if (!devices.length) {
+    readout.textContent = 'No devices found yet';
+  } else if (unknown > 0) {
+    readout.innerHTML = online + ' connected right now, <em>' +
+      unknown + ' you haven\'t named</em>';
+  } else {
+    readout.textContent = online + ' connected right now, all recognised';
+  }
+
+  document.getElementById('blockNote').hidden =
+    routerConfigured || !devices.some(d => d.blocked);
+
+  const reg = document.getElementById('register');
+
+  if (!devices.length) {
+    reg.innerHTML = '<div class="empty">Nothing found. Try Scan now, ' +
+      'and make sure this PC is on the same network.</div>';
+    return;
+  }
+
+  reg.innerHTML = devices.map(d => {
+    const stranger = d.online && !d.trusted && !d.isRouter && !d.isThisPC;
+    const cls = ['row'];
+    if (d.blocked) cls.push('blocked');
+    else if (!d.online) cls.push('offline');
+    else if (stranger) cls.push('stranger');
+    else cls.push('present');
+
+    const tags = [];
+    if (d.isThisPC) tags.push('<span class="tag you">This PC</span>');
+    if (d.isRouter) tags.push('<span class="tag router">Router</span>');
+    if (d.kind && !d.isThisPC && !d.isRouter)
+      tags.push('<span class="tag type">' + icon(d.kind) + esc(d.kind) + '</span>');
+    if (d.blocked) tags.push('<span class="tag stop">Blocked</span>');
+    if (stranger && !d.blocked && !d.name) tags.push('<span class="tag new">Not named</span>');
+    if (!d.online) tags.push('<span class="tag off">Gone ' + ago(d.lastSeen) + '</span>');
+
+    // A name the user typed wins; otherwise show what the device advertised,
+    // then its vendor, then a plain fallback.
+    const label = d.name || d.discoveredName || d.vendor || 'Unknown device';
+
+    const acts = (d.isRouter || d.isThisPC) ? '' :
+      '<div class="acts">' +
+        (d.trusted
+          ? '<button class="ghost" data-trust="' + d.mac + '" data-val="false">Unmark mine</button>'
+          : '<button class="ghost" data-trust="' + d.mac + '" data-val="true">This is mine</button>') +
+        (d.blocked
+          ? '<button class="ghost" data-block="' + d.mac + '" data-val="false">Unblock</button>'
+          : '<button class="ghost warn" data-block="' + d.mac + '" data-val="true">Block</button>') +
+      '</div>';
+
+    return '<div class="' + cls.join(' ') + '">' +
+      '<div class="dot"></div>' +
+      '<div class="who">' +
+        '<div class="name">' +
+          '<input value="' + label.replace(/"/g, '&quot;') + '" ' +
+                 'data-name="' + d.mac + '" aria-label="Device name">' +
+          tags.join('') +
+        '</div>' +
+        '<div class="meta"><span>' + d.ip + '</span><span>' + d.mac + '</span>' +
+          (d.vendor && d.vendor !== 'Unknown' && d.name ? '<span>' + esc(d.vendor) + '</span>' : '') +
+          (d.discoveredName && !d.name ? '<span>seen as &ldquo;' + esc(d.discoveredName) + '&rdquo;' +
+            (d.discoveredVia ? ' &middot; ' + d.discoveredVia : '') + '</span>' : '') +
+        '</div>' +
+      '</div>' + acts +
+    '</div>';
+  }).join('');
+}
+
+async function load() {
+  try {
+    const res = await fetch('/api/devices');
+    render(await res.json());
+  } catch (e) {
+    document.getElementById('status').textContent = 'Panel not responding';
+  }
+}
+
+document.getElementById('scanBtn').addEventListener('click', async () => {
+  await fetch('/api/scan', { method: 'POST' });
+  toast('Scanning your network, this takes about 30 seconds');
+  load();
+});
+
+document.addEventListener('click', async (e) => {
+  const trustBtn = e.target.closest('[data-trust]');
+  if (trustBtn) {
+    await fetch('/api/device/' + trustBtn.dataset.trust, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ trusted: trustBtn.dataset.val === 'true' })
+    });
+    load();
+    return;
+  }
+
+  const blockBtn = e.target.closest('[data-block]');
+  if (blockBtn) {
+    const res = await fetch('/api/block/' + blockBtn.dataset.block, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ blocked: blockBtn.dataset.val === 'true' })
+    });
+    const data = await res.json();
+    toast(data.message);
+    load();
+  }
+});
+
+document.addEventListener('change', async (e) => {
+  const input = e.target.closest('[data-name]');
+  if (!input) return;
+  await fetch('/api/device/' + input.dataset.name, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: input.value })
+  });
+  load();
+});
+
+load();
+setInterval(load, 5000);
+</script>
+</body>
+</html>

@@ -1,0 +1,30 @@
+# Personal data — device MACs, names, and vendor cache from YOUR network.
+# Never commit these; each user's install builds its own.
+devices.json
+vendors.json
+
+# PyInstaller build output — the .exe goes to GitHub Releases, not the source tree
+dist/
+build/
+*.spec
+
+# Node
+node_modules/
+
+# Python
+__pycache__/
+*.pyc
+lan-device-manager/**/__pycache__/
+
+# Local scratch / captured router pages
+*.tmp
+*.log
+mf.html
+lst.html
+*.asp.txt
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
